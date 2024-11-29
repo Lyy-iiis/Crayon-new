@@ -15,8 +15,26 @@ class LanguageModelCriterion(nn.Module):
 
         return output
 
+class ClassificationCriterion(nn.Module):
+    def __init__(self):
+        super(ClassificationCriterion, self).__init__()
+        self.loss_fn = nn.CrossEntropyLoss()
 
-def compute_loss(output, reports_ids, reports_masks):
-    criterion = LanguageModelCriterion()
-    loss = criterion(output, reports_ids[:, 1:], reports_masks[:, 1:]).mean()
-    return loss
+    def forward(self, pred, labels, mask):
+        pred = pred.view(-1, 14, 3) # 14 classes, 3-classification
+        # print(pred.shape, labels.shape, mask)
+        valid_pred = pred[:][mask]
+        valid_labels = labels[:][mask]
+        # print(valid_pred.shape, valid_labels.shape)
+        loss = self.loss_fn(valid_pred, valid_labels)
+        # print("loss:", loss)
+        return loss
+
+def compute_loss(output, reports_ids, reports_masks, pred, labels, labels_mask):
+    lm_criterion = LanguageModelCriterion()
+    classification_criterion = ClassificationCriterion()
+    
+    lm_loss = lm_criterion(output, reports_ids[:, 1:], reports_masks[:, 1:]).mean()
+    classification_loss = classification_criterion(pred, labels, labels_mask)
+    
+    return lm_loss, classification_loss

@@ -4,6 +4,7 @@ import numpy as np
 
 from modules.visual_extractor import VisualExtractor
 from modules.encoder_decoder import EncoderDecoder
+from modules.classifier import Classifier
 
 
 class R2GenModel(nn.Module):
@@ -13,6 +14,7 @@ class R2GenModel(nn.Module):
         self.tokenizer = tokenizer
         self.visual_extractor = VisualExtractor(args)
         self.encoder_decoder = EncoderDecoder(args, tokenizer)
+        self.classifier = Classifier(args.feature_shape, args.num_pred_heads)
         if args.dataset_name == 'iu_xray':
             self.forward = self.forward_iu_xray
         else:
@@ -35,7 +37,11 @@ class R2GenModel(nn.Module):
             output, _ = self.encoder_decoder(fc_feats, att_feats, mode='sample')
         else:
             raise ValueError
-        return output
+        classification_output = self.classifier(fc_feats)
+        if mode == 'train':
+            return output, classification_output
+        else:
+            return output
 
     def forward_mimic_cxr(self, images, targets=None, mode='train'):
         att_feats, fc_feats = self.visual_extractor(images)
@@ -45,5 +51,9 @@ class R2GenModel(nn.Module):
             output, _ = self.encoder_decoder(fc_feats, att_feats, mode='sample')
         else:
             raise ValueError
-        return output
+        classification_output = self.classifier(fc_feats)
+        if mode == 'train':
+            return output, classification_output
+        else:
+            return output
 

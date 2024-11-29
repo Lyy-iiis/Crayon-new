@@ -38,7 +38,20 @@ class IuxrayMultiImageDataset(BaseDataset):
         report_ids = example['ids']
         report_masks = example['mask']
         seq_length = len(report_ids)
-        sample = (image_id, image, report_ids, report_masks, seq_length)
+        
+        labels_tensor = torch.zeros(14, 3)
+        labels_mask = torch.zeros(14)
+        cnt = 0
+        for key, value in example['labels'].items():
+            if value == "":
+                pass
+            else:
+                labels_tensor[cnt][int(float(value) + 1)] = 1.0
+                labels_mask[cnt] = 1
+            cnt += 1
+        # print(labels_tensor, labels_mask)
+        
+        sample = (image_id, image, report_ids, report_masks, seq_length, labels_tensor, labels_mask)
         return sample
 
 

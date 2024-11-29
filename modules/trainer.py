@@ -6,6 +6,7 @@ import torch
 import pandas as pd
 from numpy import inf
 from tqdm import tqdm
+from modules.loss import compute_loss
 
 class BaseTrainer(object):
     def __init__(self, model, criterion, metric_ftns, optimizer, args):
@@ -108,8 +109,9 @@ class BaseTrainer(object):
             record_table = pd.DataFrame()
         else:
             record_table = pd.read_csv(record_path)
-        record_table = record_table.append(self.best_recorder['val'], ignore_index=True)
-        record_table = record_table.append(self.best_recorder['test'], ignore_index=True)
+        val_df = pd.DataFrame([self.best_recorder['val']])
+        test_df = pd.DataFrame([self.best_recorder['test']])
+        record_table = pd.concat([record_table, val_df, test_df], ignore_index=True)
         record_table.to_csv(record_path, index=False)
 
     def _prepare_device(self, n_gpu_use):
@@ -184,30 +186,36 @@ class Trainer(BaseTrainer):
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
         self.test_dataloader = test_dataloader
+        self.zeta = args.zeta
 
     def _train_epoch(self, epoch):
-
         train_loss = 0
+        total_pred_loss = 0
         self.model.train()
-        for batch_idx, (images_id, images, reports_ids, reports_masks) in tqdm(enumerate(self.train_dataloader)):
+        for batch_idx, (images_id, images, reports_ids, reports_masks, labels, labels_mask) in tqdm(enumerate(self.train_dataloader)):
             images, reports_ids, reports_masks = images.to(self.device), reports_ids.to(self.device), reports_masks.to(
                 self.device)
-            output = self.model(images, reports_ids, mode='train')
-            loss = self.criterion(output, reports_ids, reports_masks)
+            labels = labels.to(self.device)
+            labels_mask = labels_mask.to(self.device)
+            output, pred = self.model(images, reports_ids, mode='train')
+            loss, pred_loss = compute_loss(output, reports_ids, reports_masks, pred, labels, labels_mask)
             train_loss += loss.item()
+            total_pred_loss += pred_loss.item()
             self.optimizer.zero_grad()
-            loss.backward()
+            (loss + self.zeta * pred_loss).backward() # zeta-R2Gen!!!
             torch.nn.utils.clip_grad_value_(self.model.parameters(), 0.1)
             self.optimizer.step()
         log = {'train_loss': train_loss / len(self.train_dataloader)}
+        log['total_pred_loss'] = total_pred_loss / len(self.train_dataloader)
 
         self.model.eval()
         with torch.no_grad():
             val_gts, val_res = [], []
-            for batch_idx, (images_id, images, reports_ids, reports_masks) in tqdm(enumerate(self.val_dataloader)):
+            for batch_idx, (images_id, images, reports_ids, reports_masks, labels, labels_mask) in tqdm(enumerate(self.val_dataloader)):
                 images, reports_ids, reports_masks = images.to(self.device), reports_ids.to(
                     self.device), reports_masks.to(self.device)
                 output = self.model(images, mode='sample')
+                assert not isinstance(output, tuple)
                 reports = self.model.tokenizer.decode_batch(output.cpu().numpy())
                 ground_truths = self.model.tokenizer.decode_batch(reports_ids[:, 1:].cpu().numpy())
                 val_res.extend(reports)
@@ -219,7 +227,7 @@ class Trainer(BaseTrainer):
         self.model.eval()
         with torch.no_grad():
             test_gts, test_res = [], []
-            for batch_idx, (images_id, images, reports_ids, reports_masks) in tqdm(enumerate(self.test_dataloader)):
+            for batch_idx, (images_id, images, reports_ids, reports_masks, labels, labels_mask) in tqdm(enumerate(self.test_dataloader)):
                 images, reports_ids, reports_masks = images.to(self.device), reports_ids.to(
                     self.device), reports_masks.to(self.device)
                 output = self.model(images, mode='sample')

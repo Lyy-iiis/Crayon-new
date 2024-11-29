@@ -23,6 +23,7 @@ class VisualExtractor(nn.Module):
         # images = images.half()
         patch_feats = self.model(images)
         # att_feats = self.avg_fnt(patch_feats)
+        # print("patch", patch_feats.shape)
         return patch_feats.unsqueeze(1), patch_feats
         patch_feats = self.model(images)
         avg_feats = self.avg_fnt(patch_feats).squeeze().reshape(-1, patch_feats.size(1))
