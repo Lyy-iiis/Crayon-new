@@ -21,11 +21,9 @@ class ClassificationCriterion(nn.Module):
         self.loss_fn = nn.CrossEntropyLoss()
 
     def forward(self, pred, labels, mask):
-        pred = pred.view(-1, 14, 3) # 14 classes, 3-classification
-        # print(pred.shape, labels.shape, mask)
-        valid_pred = pred[:][mask]
-        valid_labels = labels[:][mask]
-        # print(valid_pred.shape, valid_labels.shape)
+        valid_pred = pred.view(-1, 14, 3).transpose(-1, -2) # 14 classes, 3-classification
+        valid_labels = labels.transpose(-1, -2)
+        # print("VVVV", valid_pred.shape, valid_labels.shape)
         loss = self.loss_fn(valid_pred, valid_labels)
         # print("loss:", loss)
         return loss
