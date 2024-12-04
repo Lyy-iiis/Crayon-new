@@ -10,4 +10,4 @@ python main.py \
 --step_size 50 \
 --gamma 0.1 \
 --seed 9223 \
---zeta 5.0
+--zeta 1.0
