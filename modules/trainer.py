@@ -201,7 +201,7 @@ class Trainer(BaseTrainer):
             loss, pred_loss = compute_loss(output, reports_ids, reports_masks, pred, labels, labels_mask)
             train_loss += loss.item()
             total_pred_loss += pred_loss.item()
-            self.optimizer.zero_grad()
+            self.optimizer.zero_grad() # | loss - beta |
             (loss + self.zeta * pred_loss).backward() # zeta-R2Gen!!!
             torch.nn.utils.clip_grad_value_(self.model.parameters(), 0.1)
             self.optimizer.step()
