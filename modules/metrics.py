@@ -24,6 +24,8 @@ def compute_scores(gts, res):
         try:
             score, scores = scorer.compute_score(gts, res, verbose=0)
         except TypeError:
+            # print("gts: ", gts)
+            # print("res: ", res)
             score, scores = scorer.compute_score(gts, res)
         if type(method) == list:
             for sc, m in zip(score, method):

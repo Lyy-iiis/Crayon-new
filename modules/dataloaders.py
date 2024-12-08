@@ -54,7 +54,7 @@ class R2DataLoader(DataLoader):
         targets_masks = np.zeros((len(reports_ids), max_seq_length), dtype=int)
 
         for i, report_ids in enumerate(reports_ids):
-            targets[i, :len(report_ids)] = report_ids
+            targets[i, :len(report_ids)] = report_ids  # Convert to list of integers
 
         for i, report_masks in enumerate(reports_masks):
             targets_masks[i, :len(report_masks)] = report_masks

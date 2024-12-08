@@ -5,6 +5,7 @@ import numpy as np
 from modules.visual_extractor import VisualExtractor
 from modules.encoder_decoder import EncoderDecoder
 from modules.classifier import Classifier
+from modules.decoder_lora import DecoderLoRA
 
 
 class R2GenModel(nn.Module):
@@ -13,7 +14,13 @@ class R2GenModel(nn.Module):
         self.args = args
         self.tokenizer = tokenizer
         self.visual_extractor = VisualExtractor(args)
-        self.encoder_decoder = EncoderDecoder(args, tokenizer)
+        self.fc_transform = nn.Linear(args.d_vf, args.d_model)
+        self.encoder_decoder = DecoderLoRA(
+            model_name=args.pretrained_model_name,
+            lora_r=args.lora_r,
+            lora_alpha=args.lora_alpha,
+            lora_dropout=args.lora_dropout
+        )
         self.classifier = Classifier(args.feature_shape, args.num_pred_heads)
         if args.dataset_name == 'iu_xray':
             self.forward = self.forward_iu_xray
@@ -30,11 +37,11 @@ class R2GenModel(nn.Module):
         att_feats_1, fc_feats_1 = self.visual_extractor(images[:, 1])
         fc_feats = torch.cat((fc_feats_0, fc_feats_1), dim=1)
         att_feats = torch.cat((att_feats_0, att_feats_1), dim=1)
-        # print(fc_feats.shape, att_feats.shape)
+        att_feats = self.fc_transform(att_feats)
         if mode == 'train':
-            output = self.encoder_decoder(fc_feats, att_feats, targets, mode='forward')
+            output = self.encoder_decoder(att_feats, targets)
         elif mode == 'sample':
-            output, _ = self.encoder_decoder(fc_feats, att_feats, mode='sample')
+            output = self.encoder_decoder(att_feats, mode='sample')
         else:
             raise ValueError
         classification_output = self.classifier(fc_feats)
@@ -45,10 +52,11 @@ class R2GenModel(nn.Module):
 
     def forward_mimic_cxr(self, images, targets=None, mode='train'):
         att_feats, fc_feats = self.visual_extractor(images)
+        att_feats = self.fc_transform(att_feats)
         if mode == 'train':
-            output = self.encoder_decoder(fc_feats, att_feats, targets, mode='forward')
+            output = self.encoder_decoder(att_feats, targets)
         elif mode == 'sample':
-            output, _ = self.encoder_decoder(fc_feats, att_feats, mode='sample')
+            output = self.encoder_decoder(att_feats)
         else:
             raise ValueError
         classification_output = self.classifier(fc_feats)
