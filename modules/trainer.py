@@ -24,6 +24,7 @@ class BaseTrainer(object):
 
         self.epochs = self.args.epochs
         self.save_period = self.args.save_period
+        self.eval_period = args.eval_period
 
         self.mnt_mode = args.monitor_mode
         self.mnt_metric = 'val_' + args.monitor_metric
@@ -57,7 +58,8 @@ class BaseTrainer(object):
             # save logged informations into log dict
             log = {'epoch': epoch}
             log.update(result)
-            self._record_best(log)
+            if epoch % self.eval_period == 0:
+                self._record_best(log)
 
             # print logged informations to the screen
             for key, value in log.items():
@@ -192,52 +194,62 @@ class Trainer(BaseTrainer):
         train_loss = 0
         total_pred_loss = 0
         self.model.train()
-        for batch_idx, (images_id, images, reports_ids, reports_masks, labels, labels_mask) in tqdm(enumerate(self.train_dataloader)):
-            images, reports_ids, reports_masks = images.to(self.device), reports_ids.to(self.device), reports_masks.to(
-                self.device)
-            labels = labels.to(self.device)
-            labels_mask = labels_mask.to(self.device)
-            output, pred = self.model(images, reports_ids, mode='train')
-            loss, pred_loss = compute_loss(output, reports_ids, reports_masks, pred, labels, labels_mask)
-            train_loss += loss.item()
-            total_pred_loss += pred_loss.item()
-            self.optimizer.zero_grad()
-            (loss + self.zeta * pred_loss).backward() # zeta-R2Gen!!!
-            torch.nn.utils.clip_grad_value_(self.model.parameters(), 0.1)
-            self.optimizer.step()
+        with tqdm(total=len(self.train_dataloader), desc=f'Epoch {epoch}/{self.epochs}', unit='batch') as pbar:
+            for batch_idx, (images_id, images, reports_ids, reports_masks, labels, labels_mask) in enumerate(self.train_dataloader):
+                images, reports_ids, reports_masks = images.to(self.device), reports_ids.to(self.device), reports_masks.to(
+                    self.device)
+                labels = labels.to(self.device)
+                labels_mask = labels_mask.to(self.device)
+                output, pred = self.model(images, reports_ids, mode='train')
+                loss, pred_loss = compute_loss(output, reports_ids, reports_masks, pred, labels, labels_mask)
+                train_loss += loss.item()
+                total_pred_loss += pred_loss.item()
+                self.optimizer.zero_grad()
+                (loss + self.zeta * pred_loss).backward() # zeta-R2Gen!!!
+                torch.nn.utils.clip_grad_value_(self.model.parameters(), 0.1)
+                self.optimizer.step()
+                
+                pbar.set_postfix({'train_loss': train_loss / (batch_idx + 1), 'pred_loss': total_pred_loss / (batch_idx + 1)})
+                pbar.update(1)
+        
         log = {'train_loss': train_loss / len(self.train_dataloader)}
         log['total_pred_loss'] = total_pred_loss / len(self.train_dataloader)
 
-        self.model.eval()
-        with torch.no_grad():
-            val_gts, val_res = [], []
-            for batch_idx, (images_id, images, reports_ids, reports_masks, labels, labels_mask) in tqdm(enumerate(self.val_dataloader)):
-                images, reports_ids, reports_masks = images.to(self.device), reports_ids.to(
-                    self.device), reports_masks.to(self.device)
-                output = self.model(images, mode='sample')
-                assert not isinstance(output, tuple)
-                reports = self.model.tokenizer.decode_batch(output.cpu().numpy())
-                ground_truths = self.model.tokenizer.decode_batch(reports_ids[:, 1:].cpu().numpy())
-                val_res.extend(reports)
-                val_gts.extend(ground_truths)
-            val_met = self.metric_ftns({i: [gt] for i, gt in enumerate(val_gts)},
-                                       {i: [re] for i, re in enumerate(val_res)})
-            log.update(**{'val_' + k: v for k, v in val_met.items()})
+        if epoch % self.eval_period == 0:
+            self.model.eval()
+            with torch.no_grad():
+                val_gts, val_res = [], []
+                ok = False
+                for batch_idx, (images_id, images, reports_ids, reports_masks, labels, labels_mask) in tqdm(enumerate(self.val_dataloader)):
+                    images, reports_ids, reports_masks = images.to(self.device), reports_ids.to(
+                        self.device), reports_masks.to(self.device)
+                    output = self.model(images, mode='sample')
+                    assert not isinstance(output, tuple)
+                    reports = [self.model.tokenizer.decode(ids, skip_special_tokens=True) for ids in output.cpu().numpy()]
+                    if ok == False:
+                        print("reports:", reports)
+                        ok = True
+                    ground_truths = [self.model.tokenizer.decode(ids, skip_special_tokens=True) for ids in reports_ids.cpu().numpy()]
+                    val_res.extend(reports)
+                    val_gts.extend(ground_truths)
+                val_met = self.metric_ftns({i: [gt] for i, gt in enumerate(val_gts)},
+                                        {i: [re] for i, re in enumerate(val_res)})
+                log.update(**{'val_' + k: v for k, v in val_met.items()})
 
-        self.model.eval()
-        with torch.no_grad():
-            test_gts, test_res = [], []
-            for batch_idx, (images_id, images, reports_ids, reports_masks, labels, labels_mask) in tqdm(enumerate(self.test_dataloader)):
-                images, reports_ids, reports_masks = images.to(self.device), reports_ids.to(
-                    self.device), reports_masks.to(self.device)
-                output = self.model(images, mode='sample')
-                reports = self.model.tokenizer.decode_batch(output.cpu().numpy())
-                ground_truths = self.model.tokenizer.decode_batch(reports_ids[:, 1:].cpu().numpy())
-                test_res.extend(reports)
-                test_gts.extend(ground_truths)
-            test_met = self.metric_ftns({i: [gt] for i, gt in enumerate(test_gts)},
-                                        {i: [re] for i, re in enumerate(test_res)})
-            log.update(**{'test_' + k: v for k, v in test_met.items()})
+            self.model.eval()
+            with torch.no_grad():
+                test_gts, test_res = [], []
+                for batch_idx, (images_id, images, reports_ids, reports_masks, labels, labels_mask) in tqdm(enumerate(self.test_dataloader)):
+                    images, reports_ids, reports_masks = images.to(self.device), reports_ids.to(
+                        self.device), reports_masks.to(self.device)
+                    output = self.model(images, mode='sample')
+                    reports = [self.model.tokenizer.decode(ids, skip_special_tokens=True) for ids in output.cpu().numpy()]
+                    ground_truths = [self.model.tokenizer.decode(ids, skip_special_tokens=True) for ids in reports_ids[:, 1:].cpu().numpy()]
+                    test_res.extend(reports)
+                    test_gts.extend(ground_truths)
+                test_met = self.metric_ftns({i: [gt] for i, gt in enumerate(test_gts)},
+                                            {i: [re] for i, re in enumerate(test_res)})
+                log.update(**{'test_' + k: v for k, v in test_met.items()})
 
         self.lr_scheduler.step()
 
