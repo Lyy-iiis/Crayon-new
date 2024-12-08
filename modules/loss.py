@@ -19,7 +19,7 @@ class LanguageModelCriterion(nn.Module):
 class ClassificationCriterion(nn.Module):
     def __init__(self):
         super(ClassificationCriterion, self).__init__()
-        self.loss_fn = nn.CrossEntropyLoss()
+        self.loss_fn = FocalLoss()
 
     def forward(self, pred, labels, mask):
         valid_pred = pred.view(-1, 14, 3).transpose(-1, -2) # 14 classes, 3-classification
@@ -28,6 +28,18 @@ class ClassificationCriterion(nn.Module):
         loss = self.loss_fn(valid_pred, valid_labels)
         # print("loss:", loss)
         return loss
+    
+class FocalLoss(nn.Module):
+    def __init__(self, gamma=2, weight=None):
+        super(FocalLoss, self).__init__()
+        self.gamma = gamma
+        self.weight = weight
+
+    def forward(self, inputs, targets):
+        ce_loss = nn.CrossEntropyLoss(weight=self.weight)(inputs, targets)
+        pt = torch.exp(-ce_loss)
+        focal_loss = (1 - pt) ** self.gamma * ce_loss
+        return focal_loss
 
 def compute_loss(output, reports_ids, reports_masks, pred, labels, labels_mask):
     lm_criterion = LanguageModelCriterion()
