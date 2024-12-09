@@ -34,7 +34,7 @@ def parse_agrs():
     parser.add_argument('--visual_extractor_pretrained', type=bool, default=True, help='whether to load the pretrained visual extractor')
 
     # Model settings (for Transformer)
-    parser.add_argument('--d_model', type=int, default=1536, help='the dimension of Transformer.')
+    parser.add_argument('--d_model', type=int, default=3072, help='the dimension of Transformer.')
     parser.add_argument('--d_ff', type=int, default=512, help='the dimension of FFN.')
     parser.add_argument('--d_vf', type=int, default=512, help='the dimension of the patch features.')
     parser.add_argument('--num_heads', type=int, default=8, help='the number of heads in Transformer.')
@@ -90,7 +90,8 @@ def parse_agrs():
     parser.add_argument('--seed', type=int, default=9233, help='.')
     parser.add_argument('--resume', type=str, help='whether to resume the training from existing checkpoints.')
 
-    parser.add_argument('--pretrained_model_name', type=str, default='Qwen/Qwen2.5-1.5B', help='the name of the pretrained model.')
+    parser.add_argument('--pretrained_model_name', type=str, default='meta-llama/Llama-3.2-3B', help='the name of the pretrained model.')
+    parser.add_argument('--pretrained_model_path', type=str, default=None, help='the path to the pretrained model.')
     parser.add_argument('--lora_r', type=int, default=16, help='the rank of the LoRA adaptation.')
     parser.add_argument('--lora_alpha', type=float, default=16, help='the alpha parameter for LoRA.')
     parser.add_argument('--lora_dropout', type=float, default=0.1, help='the dropout rate for LoRA.')
@@ -110,12 +111,16 @@ def main():
     np.random.seed(args.seed)
 
     # create tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(args.pretrained_model_name)
+    local_model_path = os.path.join(args.pretrained_model_path, args.pretrained_model_name)
+    if os.path.exists(local_model_path):
+        tokenizer = AutoTokenizer.from_pretrained(local_model_path)
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(args.pretrained_model_name)
 
     # create data loader
     train_dataloader = R2DataLoader(args, tokenizer, split='train', shuffle=True)
-    val_dataloader = R2DataLoader(args, tokenizer, split='val', shuffle=False)
-    test_dataloader = R2DataLoader(args, tokenizer, split='test', shuffle=False)
+    val_dataloader = R2DataLoader(args, tokenizer, split='train', shuffle=False)
+    test_dataloader = R2DataLoader(args, tokenizer, split='train', shuffle=False)
 
     # build model architecture
     model = R2GenModel(args, tokenizer)
