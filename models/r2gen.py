@@ -17,7 +17,6 @@ class R2GenModel(nn.Module):
         self.fc_transform = nn.Linear(args.d_vf, args.d_model)
         self.encoder_decoder = DecoderLoRA(
             model_name=args.pretrained_model_name,
-            model_path=args.pretrained_model_path,
             lora_r=args.lora_r,
             lora_alpha=args.lora_alpha,
             lora_dropout=args.lora_dropout

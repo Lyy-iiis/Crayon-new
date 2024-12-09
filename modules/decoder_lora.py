@@ -2,17 +2,11 @@ import torch
 import torch.nn as nn
 from transformers import AutoModelForCausalLM
 from peft import get_peft_model, LoraConfig, TaskType
-import os
 
 class DecoderLoRA(nn.Module):
-    def __init__(self, model_name, lora_r, lora_alpha, lora_dropout, model_path = None):
+    def __init__(self, model_name, lora_r, lora_alpha, lora_dropout):
         super(DecoderLoRA, self).__init__()
-        # self.model = AutoModelForCausalLM.from_pretrained(model_name)
-        local_model_path = os.path.join(model_path, model_name)
-        if os.path.exists(local_model_path):
-            self.model = AutoModelForCausalLM.from_pretrained(local_model_path)
-        else:
-            self.model = AutoModelForCausalLM.from_pretrained(model_name)
+        self.model = AutoModelForCausalLM.from_pretrained(model_name)
         peft_config = LoraConfig(
             task_type=TaskType.CAUSAL_LM,
             r=lora_r,
