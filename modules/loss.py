@@ -12,6 +12,7 @@ class LanguageModelCriterion(nn.Module):
         target = target[:, :input.size(1)]
         mask = mask[:, :input.size(1)]
         output = -input.gather(2, target.long().unsqueeze(2)).squeeze(2) * mask
+        # print("output", output)
         output = torch.sum(output) / torch.sum(mask)
 
         return output
@@ -45,7 +46,8 @@ def compute_loss(output, reports_ids, reports_masks, pred, labels, labels_mask):
     lm_criterion = LanguageModelCriterion()
     classification_criterion = ClassificationCriterion()
     
-    lm_loss = lm_criterion(output, reports_ids[:, 1:], reports_masks[:, 1:]).mean()
+    # print("report: ", reports_ids[0])
+    lm_loss = lm_criterion(output, reports_ids, reports_masks).mean()
     classification_loss = classification_criterion(pred, labels, labels_mask)
     
     return lm_loss, classification_loss
