@@ -7,6 +7,7 @@ import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 from transformers import AutoTokenizer
+from modules.tokenizers import Tokenizer
 from modules.dataloaders import R2DataLoader
 from modules.metrics import compute_scores
 from modules.optimizers import build_optimizer, build_lr_scheduler
@@ -34,9 +35,9 @@ def parse_agrs():
     parser.add_argument('--visual_extractor_pretrained', type=bool, default=True, help='whether to load the pretrained visual extractor')
 
     # Model settings (for Transformer)
-    parser.add_argument('--d_model', type=int, default=3072, help='the dimension of Transformer.')
+    parser.add_argument('--d_model', type=int, default=512, help='the dimension of Transformer.')
     parser.add_argument('--d_ff', type=int, default=512, help='the dimension of FFN.')
-    parser.add_argument('--d_vf', type=int, default=512, help='the dimension of the patch features.')
+    parser.add_argument('--d_vf', type=int, default=2048, help='the dimension of the patch features.')
     parser.add_argument('--num_heads', type=int, default=8, help='the number of heads in Transformer.')
     parser.add_argument('--num_layers', type=int, default=3, help='the number of layers of Transformer.')
     parser.add_argument('--dropout', type=float, default=0.1, help='the dropout rate of Transformer.')
@@ -50,8 +51,9 @@ def parse_agrs():
     parser.add_argument('--rm_num_heads', type=int, default=8, help='the numebr of heads in rm.')
     parser.add_argument('--rm_d_model', type=int, default=512, help='the dimension of rm.')
     parser.add_argument('--num_pred_heads', type=int, default=42, help='the number of prediction classes.')
-    parser.add_argument('--feature_shape', type=tuple, default=(1024,), help='the shape of the feature of visual extractor.')
+    parser.add_argument('--feature_shape', type=tuple, default=(4096,), help='the shape of the feature of visual extractor.')
     parser.add_argument('--zeta', type=float, default=1.0, help='coefficient of classfication loss.')
+    parser.add_argument('--zeta_entropy', type=float, default=0.1, help='coefficient of entropy loss.')
 
     # Sample related
     parser.add_argument('--sample_method', type=str, default='beam_search', help='the sample methods to sample a report.')
@@ -72,12 +74,12 @@ def parse_agrs():
     parser.add_argument('--monitor_mode', type=str, default='max', choices=['min', 'max'], help='whether to max or min the metric.')
     parser.add_argument('--monitor_metric', type=str, default='BLEU_4', help='the metric to be monitored.')
     parser.add_argument('--early_stop', type=int, default=50, help='the patience of training.')
-    parser.add_argument('--eval_period', type=int, default=2, help='the period of val & test.')
+    parser.add_argument('--eval_period', type=int, default=10, help='the period of val & test.')
 
     # Optimization
     parser.add_argument('--optim', type=str, default='Adam', help='the type of the optimizer.')
     parser.add_argument('--lr_ve', type=float, default=5e-5, help='the learning rate for the visual extractor.')
-    parser.add_argument('--lr_ed', type=float, default=6e-4, help='the learning rate for the remaining parameters.')
+    parser.add_argument('--lr_ed', type=float, default=1e-4, help='the learning rate for the remaining parameters.')
     parser.add_argument('--weight_decay', type=float, default=1e-5, help='the weight decay.')
     parser.add_argument('--amsgrad', type=bool, default=True, help='.')
 
@@ -95,8 +97,14 @@ def parse_agrs():
     parser.add_argument('--lora_r', type=int, default=16, help='the rank of the LoRA adaptation.')
     parser.add_argument('--lora_alpha', type=float, default=16, help='the alpha parameter for LoRA.')
     parser.add_argument('--lora_dropout', type=float, default=0.1, help='the dropout rate for LoRA.')
+    
+    parser.add_argument('--val_iters', type=int, default=1000, help='the number of iterations for validation.')
+    parser.add_argument('--test_iters', type=int, default=1000, help='the number of iterations for testing.')
+    
+    parser.add_argument('--method', type=str, default='r2gen', help='the method of decoder to be used.')
 
     args = parser.parse_args()
+    # print(args.enable_test)
     return args
 
 
@@ -111,16 +119,21 @@ def main():
     np.random.seed(args.seed)
 
     # create tokenizer
-    local_model_path = os.path.join(args.pretrained_model_path, args.pretrained_model_name)
-    if os.path.exists(local_model_path):
-        tokenizer = AutoTokenizer.from_pretrained(local_model_path)
+    if args.method == 'pretrained':
+        local_model_path = os.path.join(args.pretrained_model_path, args.pretrained_model_name)
+        if os.path.exists(local_model_path):
+            tokenizer = AutoTokenizer.from_pretrained(local_model_path)
+        else:
+            tokenizer = AutoTokenizer.from_pretrained(args.pretrained_model_name)
+    elif args.method == 'r2gen':
+        tokenizer = Tokenizer(args)
     else:
-        tokenizer = AutoTokenizer.from_pretrained(args.pretrained_model_name)
+        raise ValueError("Invalid method: choose 'pretrained' or 'r2gen'")
 
     # create data loader
     train_dataloader = R2DataLoader(args, tokenizer, split='train', shuffle=True)
-    val_dataloader = R2DataLoader(args, tokenizer, split='train', shuffle=False)
-    test_dataloader = R2DataLoader(args, tokenizer, split='train', shuffle=False)
+    val_dataloader = R2DataLoader(args, tokenizer, split='val', shuffle=False)
+    test_dataloader = R2DataLoader(args, tokenizer, split='test', shuffle=False)
 
     # build model architecture
     model = R2GenModel(args, tokenizer)

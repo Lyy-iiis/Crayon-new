@@ -374,7 +374,8 @@ class EncoderDecoder(AttModel):
 
         att_feats, seq, att_masks, seq_mask = self._prepare_feature_forward(att_feats, att_masks, seq)
         out = self.model(att_feats, seq, att_masks, seq_mask)
-        outputs = F.log_softmax(self.logit(out), dim=-1)
+        # outputs = F.log_softmax(self.logit(out), dim=-1)
+        outputs = F.softmax(self.logit(out), dim=-1)
         return outputs
 
     def core(self, it, fc_feats_ph, att_feats_ph, memory, state, mask):

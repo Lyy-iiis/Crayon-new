@@ -17,8 +17,11 @@ class BaseDataset(Dataset):
 
         self.examples = self.ann[self.split]
         for i in range(len(self.examples)):
-            encoding = tokenizer(self.examples[i]['report'], return_tensors='pt', truncation=True, max_length=self.max_seq_length)
-            self.examples[i]['ids'] = encoding['input_ids'][0].tolist()  # Extract token IDs
+            if args.method == 'pretrained':
+                encoding = tokenizer(self.examples[i]['report'], return_tensors='pt', truncation=True, max_length=self.max_seq_length)
+                self.examples[i]['ids'] = encoding['input_ids'][0].tolist()  # Extract token IDs
+            else:
+                self.examples[i]['ids'] = tokenizer(self.examples[i]['report'])[:self.max_seq_length]
             self.examples[i]['mask'] = [1] * len(self.examples[i]['ids'])
             # if not i: 
             #     print("REPORT: ", self.examples[i]['report'])
