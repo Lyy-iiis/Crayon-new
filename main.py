@@ -53,6 +53,7 @@ def parse_agrs():
     parser.add_argument('--num_pred_heads', type=int, default=42, help='the number of prediction classes.')
     parser.add_argument('--feature_shape', type=tuple, default=(4096,), help='the shape of the feature of visual extractor.')
     parser.add_argument('--zeta', type=float, default=1.0, help='coefficient of classfication loss.')
+    parser.add_argument('--zeta_entropy', type=float, default=0.1, help='coefficient of entropy loss.')
 
     # Sample related
     parser.add_argument('--sample_method', type=str, default='beam_search', help='the sample methods to sample a report.')

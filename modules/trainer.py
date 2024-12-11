@@ -189,6 +189,7 @@ class Trainer(BaseTrainer):
         self.val_dataloader = val_dataloader
         self.test_dataloader = test_dataloader
         self.zeta = args.zeta
+        self.zeta_entropy = args.zeta_entropy
         self.enable_test = 1
         self.enable_val = 1
         self.val_iters = args.val_iters
@@ -198,7 +199,7 @@ class Trainer(BaseTrainer):
     def _train_epoch(self, epoch):
         train_loss = 0
         total_pred_loss = 0
-        total_rep_loss = 0
+        total_entropy_loss = 0
         self.model.train()
         with tqdm(total=len(self.train_dataloader), desc=f'Epoch {epoch}/{self.epochs}', unit='batch') as pbar:
             for batch_idx, (images_id, images, reports_ids, reports_masks, labels, labels_mask) in enumerate(self.train_dataloader):
@@ -210,21 +211,21 @@ class Trainer(BaseTrainer):
                 # print("trainer/reports_masks:", reports_masks)
                 # assert torch.nonzero(reports_ids).size(0) == reports_masks.sum().item(), f"reports_ids and reports_masks do not match. Please check the dataloader. # of non-zero numbers: {torch.nonzero(reports_ids).size(0)} and {reports_masks.sum().item()}"
                 output, pred = self.model(images, reports_ids, mode='train')
-                loss, rep_loss, pred_loss = compute_loss(output, reports_ids, reports_masks, pred, labels, labels_mask)
+                loss, entropy_loss, pred_loss = compute_loss(output, reports_ids, reports_masks, pred, labels, labels_mask)
                 train_loss += loss.item()
                 total_pred_loss += pred_loss.item()
-                total_rep_loss += rep_loss.item()
+                total_entropy_loss += entropy_loss.item()
                 self.optimizer.zero_grad()
-                (loss + rep_loss + self.zeta * pred_loss).backward() # zeta-R2Gen!!!
+                (loss + self.zeta_entropy * entropy_loss + self.zeta * pred_loss).backward() # zeta-R2Gen!!!
                 torch.nn.utils.clip_grad_value_(self.model.parameters(), 0.1)
                 self.optimizer.step()
                 
-                pbar.set_postfix({'lm_loss': train_loss / (batch_idx + 1), 'pred_loss': total_pred_loss / (batch_idx + 1), 'rep_loss': total_rep_loss / (batch_idx + 1)})
+                pbar.set_postfix({'lm_loss': train_loss / (batch_idx + 1), 'pred_loss': total_pred_loss / (batch_idx + 1), 'ent_loss': total_entropy_loss / (batch_idx + 1)})
                 pbar.update(1)
         
         log = {'train_loss': train_loss / len(self.train_dataloader)}
         log['total_pred_loss'] = total_pred_loss / len(self.train_dataloader)
-        log['total_rep_loss'] = total_rep_loss / len(self.train_dataloader)
+        log['total_ent_loss'] = total_entropy_loss / len(self.train_dataloader)
 
         if epoch % self.eval_period == 0:
             if self.enable_val == 1:
