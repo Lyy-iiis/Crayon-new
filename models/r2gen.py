@@ -38,6 +38,7 @@ class R2GenModel(nn.Module):
         att_feats_1, fc_feats_1 = self.visual_extractor(images[:, 1])
         fc_feats = torch.cat((fc_feats_0, fc_feats_1), dim=1)
         att_feats = torch.cat((att_feats_0, att_feats_1), dim=1)
+        # print(fc_feats.shape, att_feats.shape)
         att_feats = self.fc_transform(att_feats)
         if mode == 'train':
             output = self.encoder_decoder(att_feats, targets)

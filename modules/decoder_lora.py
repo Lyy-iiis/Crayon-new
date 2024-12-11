@@ -33,13 +33,14 @@ class DecoderLoRA(nn.Module):
             input_ids = torch.cat((att_feats, embedded_targets), dim=1)
             attention_mask = torch.ones(input_ids.size()[:-1], dtype=torch.long, device=input_ids.device)
             logits = self.model(inputs_embeds=input_ids, attention_mask=attention_mask).logits
-            return self.log_softmax(logits)
+            output_logits = logits[:, att_feats.size(1):, :]
+            return self.log_softmax(output_logits)
         elif mode == 'sample':
             assert targets is None
             embedded_att_feats = att_feats
             attention_mask = torch.ones(embedded_att_feats.size()[:-1], dtype=torch.long, device=embedded_att_feats.device)
             return self.model.generate(
-                inputs_embeds=embedded_att_feats, 
+                inputs_embeds=embedded_att_feats,
                 attention_mask=attention_mask, 
                 max_new_tokens=80, 
                 pad_token_id=self.model.config.eos_token_id

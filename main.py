@@ -36,7 +36,7 @@ def parse_agrs():
     # Model settings (for Transformer)
     parser.add_argument('--d_model', type=int, default=3072, help='the dimension of Transformer.')
     parser.add_argument('--d_ff', type=int, default=512, help='the dimension of FFN.')
-    parser.add_argument('--d_vf', type=int, default=512, help='the dimension of the patch features.')
+    parser.add_argument('--d_vf', type=int, default=2048, help='the dimension of the patch features.')
     parser.add_argument('--num_heads', type=int, default=8, help='the number of heads in Transformer.')
     parser.add_argument('--num_layers', type=int, default=3, help='the number of layers of Transformer.')
     parser.add_argument('--dropout', type=float, default=0.1, help='the dropout rate of Transformer.')
@@ -50,7 +50,7 @@ def parse_agrs():
     parser.add_argument('--rm_num_heads', type=int, default=8, help='the numebr of heads in rm.')
     parser.add_argument('--rm_d_model', type=int, default=512, help='the dimension of rm.')
     parser.add_argument('--num_pred_heads', type=int, default=42, help='the number of prediction classes.')
-    parser.add_argument('--feature_shape', type=tuple, default=(1024,), help='the shape of the feature of visual extractor.')
+    parser.add_argument('--feature_shape', type=tuple, default=(4096,), help='the shape of the feature of visual extractor.')
     parser.add_argument('--zeta', type=float, default=1.0, help='coefficient of classfication loss.')
 
     # Sample related
@@ -72,7 +72,7 @@ def parse_agrs():
     parser.add_argument('--monitor_mode', type=str, default='max', choices=['min', 'max'], help='whether to max or min the metric.')
     parser.add_argument('--monitor_metric', type=str, default='BLEU_4', help='the metric to be monitored.')
     parser.add_argument('--early_stop', type=int, default=50, help='the patience of training.')
-    parser.add_argument('--eval_period', type=int, default=2, help='the period of val & test.')
+    parser.add_argument('--eval_period', type=int, default=10, help='the period of val & test.')
 
     # Optimization
     parser.add_argument('--optim', type=str, default='Adam', help='the type of the optimizer.')
@@ -120,7 +120,7 @@ def main():
     # create data loader
     train_dataloader = R2DataLoader(args, tokenizer, split='train', shuffle=True)
     val_dataloader = R2DataLoader(args, tokenizer, split='train', shuffle=False)
-    test_dataloader = R2DataLoader(args, tokenizer, split='train', shuffle=False)
+    test_dataloader = R2DataLoader(args, tokenizer, split='test', shuffle=False)
 
     # build model architecture
     model = R2GenModel(args, tokenizer)
