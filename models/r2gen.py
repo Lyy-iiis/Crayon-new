@@ -41,6 +41,7 @@ class R2GenModel(nn.Module):
 
     def forward_iu_xray(self, images, targets=None, mode='train'):
         att_feats_0, fc_feats_0 = self.visual_extractor(images[:, 0])
+        # print(att_feats_0.mean().item(), att_feats_0.std().item())
         att_feats_1, fc_feats_1 = self.visual_extractor(images[:, 1])
         fc_feats = torch.cat((fc_feats_0, fc_feats_1), dim=1)
         att_feats = torch.cat((att_feats_0, att_feats_1), dim=1)
@@ -61,7 +62,7 @@ class R2GenModel(nn.Module):
             raise ValueError
         classification_output = self.classifier(fc_feats)
         if mode == 'train':
-            return output, classification_output
+            return output, classification_output, att_feats_0, att_feats_1
         else:
             return output
 

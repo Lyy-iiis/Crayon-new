@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-
+import torch.nn.functional as F
 
 class LanguageModelCriterion(nn.Module):
     def __init__(self):
@@ -77,16 +77,33 @@ class FocalLoss(nn.Module):
         focal_loss = (1 - pt) ** self.gamma * ce_loss
         return focal_loss
 
-def compute_loss(output, reports_ids, reports_masks, pred, labels, labels_mask):
+class ContrastiveLoss(nn.Module):
+    def __init__(self):
+        super(ContrastiveLoss, self).__init__()
+
+    def forward(self, att_feats_0, att_feats_1):
+        # print("att_feats_0", att_feats_0.shape, att_feats_1.shape)
+        att_feats_0 = F.normalize(att_feats_0, p=2, dim=2) # 16x49x2048
+        att_feats_1 = F.normalize(att_feats_1, p=2, dim=2) # 16x49x2048
+        sim = torch.einsum('and,bnd->abn', att_feats_0, att_feats_1) # 16x16x49
+        sim_1 = - torch.log_softmax(sim, dim=1)
+        sim_1 = torch.einsum('aab->ab', sim_1).mean()
+        sim_0 = - torch.log_softmax(sim, dim=0)
+        sim_0 = torch.einsum('aab->ab', sim_0).mean()
+        return sim_0 + sim_1
+
+def compute_loss(output, reports_ids, reports_masks, pred, labels, labels_mask, att_feats_0, att_feats_1):
     lm_criterion = LanguageModelCriterion()
     # rep_criterion = RepetitionCriterion()
     entropy_criterion = EntropyCriterion()
     classification_criterion = ClassificationCriterion()
+    contrastive_criterion = ContrastiveLoss()
     
     # print("report: ", reports_ids[0])
     lm_loss = lm_criterion(output, reports_ids[:, 1:], reports_masks[:, 1:])
     # rep_loss = rep_criterion(output, reports_ids[:, 1:], reports_masks[:, 1:])
     entropy_loss = entropy_criterion(output, reports_masks[:, 1:])
     classification_loss = classification_criterion(pred, labels, labels_mask)
+    contrastive_loss = contrastive_criterion(att_feats_0, att_feats_1)
     
-    return lm_loss, entropy_loss, classification_loss
+    return lm_loss, entropy_loss, classification_loss, contrastive_loss
