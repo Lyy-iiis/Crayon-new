@@ -5,7 +5,7 @@ from peft import get_peft_model, LoraConfig, TaskType
 import os
 
 class DecoderLoRA(nn.Module):
-    def __init__(self, model_name, lora_r, lora_alpha, lora_dropout, model_path = None):
+    def __init__(self, model_name, lora_r, lora_alpha, lora_dropout, model_path = None, max_seq_length = 60):
         super(DecoderLoRA, self).__init__()
         # self.model = AutoModelForCausalLM.from_pretrained(model_name)
         local_model_path = os.path.join(model_path, model_name)
@@ -21,7 +21,9 @@ class DecoderLoRA(nn.Module):
         )
         self.model = get_peft_model(self.model, peft_config)
         self.log_softmax = nn.LogSoftmax(dim=-1)
+        self.softmax = nn.Softmax(dim=-1)
         self.embedding = nn.Embedding(self.model.config.vocab_size, self.model.config.hidden_size)  # Embedding layer
+        self.max_seq_length = max_seq_length
 
     def forward(self, att_feats, targets=None, mode='forward'):
         if mode == 'forward':
@@ -33,8 +35,12 @@ class DecoderLoRA(nn.Module):
             input_ids = torch.cat((att_feats, embedded_targets), dim=1)
             attention_mask = torch.ones(input_ids.size()[:-1], dtype=torch.long, device=input_ids.device)
             logits = self.model(inputs_embeds=input_ids, attention_mask=attention_mask).logits
-            output_logits = logits[:, att_feats.size(1):, :]
-            return self.log_softmax(output_logits)
+            output_logits = logits[:, att_feats.size(1)-1:, :]
+            output_logits = self.softmax(output_logits)
+            # print("decoder-lora/output_logits: ", output_logits)
+            # assert torch.max(output_logits) <= 1.0 and torch.min(output_logits) >= 0.0
+            # return self.log_softmax(output_logits)
+            return output_logits
         elif mode == 'sample':
             assert targets is None
             embedded_att_feats = att_feats
@@ -42,7 +48,7 @@ class DecoderLoRA(nn.Module):
             return self.model.generate(
                 inputs_embeds=embedded_att_feats,
                 attention_mask=attention_mask, 
-                max_new_tokens=80, 
+                max_new_tokens=self.max_seq_length, 
                 pad_token_id=self.model.config.eos_token_id
             )
         else:
