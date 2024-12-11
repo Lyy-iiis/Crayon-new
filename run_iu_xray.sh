@@ -11,4 +11,4 @@ python main.py \
 --gamma 0.1 \
 --seed 9223 \
 --zeta 2000.0 \
---pretrained_model_path ../autodl-tmp
+--pretrained_model_path ./llama
