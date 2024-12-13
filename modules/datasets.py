@@ -14,8 +14,13 @@ class BaseDataset(Dataset):
         self.tokenizer = tokenizer
         self.transform = transform
         self.ann = json.loads(open(self.ann_path, 'r').read())
+        self.duplication_num = args.duplication_num
 
-        self.examples = self.ann[self.split]
+        if (self.split == 'train'):
+            self.examples = self.augment_diseased_data(self.ann[self.split], self.duplication_num)
+        else: 
+            self.examples = self.ann[self.split]
+        
         for i in range(len(self.examples)):
             if args.method == 'pretrained':
                 encoding = tokenizer(self.examples[i]['report'], return_tensors='pt', truncation=True, max_length=self.max_seq_length)
@@ -26,6 +31,23 @@ class BaseDataset(Dataset):
             # if not i: 
             #     print("REPORT: ", self.examples[i]['report'])
             #     print("IDS: ", self.examples[i]['ids'])
+        
+    def augment_diseased_data(self, data, duplication_num):
+        augmented_data = []
+        
+        for example in data:
+            labels = example['labels']
+            has_disease = any(
+                value == "1.0" for key, value in labels.items() if key != "No Finding"
+            )
+            augmented_data.append(example)
+            
+            if has_disease:
+                num_duplicates = int(duplication_num)
+                for _ in range(num_duplicates):
+                    augmented_data.append(example)
+                    
+        return augmented_data
 
     def __len__(self):
         return len(self.examples)

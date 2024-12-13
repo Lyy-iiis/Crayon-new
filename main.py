@@ -102,6 +102,8 @@ def parse_agrs():
     parser.add_argument('--test_iters', type=int, default=1000, help='the number of iterations for testing.')
     
     parser.add_argument('--method', type=str, default='r2gen', help='the method of decoder to be used.')
+    
+    parser.add_argument('--duplication_num', type=int, default=1, help='disease data augment ratio.')
 
     args = parser.parse_args()
     # print(args.enable_test)

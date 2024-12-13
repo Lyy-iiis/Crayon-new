@@ -9,6 +9,6 @@ python gen_report.py \
 --resume ../autodl-tmp/results/iu_xray/current_checkpoint.pth \
 --pretrained_model_path ../autodl-tmp
 
-cd ./external/CheXbert/src
+# cd ./external/CheXbert/src
 
-python label.py -d=../../../generated_reports.csv -o=../../../ -c=../chexbert.pth
+# python label.py -d=../../../generated_reports.csv -o=../../../ -c=../chexbert.pth
