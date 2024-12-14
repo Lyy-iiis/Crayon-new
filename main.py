@@ -104,6 +104,8 @@ def parse_agrs():
     parser.add_argument('--method', type=str, default='r2gen', help='the method of decoder to be used.')
     
     parser.add_argument('--duplication_num', type=int, default=1, help='disease data augment ratio.')
+    
+    parser.add_argument('--local_bert', type=bool, default=False, help='whether to use the local bert model.')
 
     args = parser.parse_args()
     # print(args.enable_test)

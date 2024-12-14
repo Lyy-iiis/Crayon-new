@@ -6,7 +6,7 @@ python main.py \
 --threshold 3 \
 --batch_size 16 \
 --epochs 50 \
---save_dir ../autodl-tmp/results/iu_xray \
+--save_dir results/iu_xray \
 --step_size 50 \
 --gamma 0.1 \
 --seed 9223 \

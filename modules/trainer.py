@@ -4,6 +4,7 @@ from abc import abstractmethod
 import time
 import torch
 import pandas as pd
+import json
 from numpy import inf
 from tqdm import tqdm
 from modules.loss import compute_loss
@@ -276,17 +277,46 @@ class Trainer(BaseTrainer):
                             reports = [self.model.tokenizer.decode(ids, skip_special_tokens=True) for ids in output.cpu().numpy()]
                             ground_truths = [self.model.tokenizer.decode(ids, skip_special_tokens=True) for ids in reports_ids.cpu().numpy()]
                         elif self.method == 'r2gen':
-                            reports = self.model.tokenizer.decode_batch(output.cpu().numpy())
+                            reports = self.model.tokenizer.decode_batch(output.cpu().numpy())  # `reports` is a string of the generated report, output has shape (batch_size, sequence_length) which represent token ID
                             ground_truths = self.model.tokenizer.decode_batch(reports_ids[:, 1:].cpu().numpy())
                         test_res.extend(reports)
                         test_gts.extend(ground_truths)
                         if iters >= self.test_iters:
                             print(f"Test iter {iters} reached the limit of {self.test_iters}, breaking...")
                             break
+                    
+                    current_dir = self.checkpoint_dir+'/'+'epoch_'+str(epoch)
+                    if not os.path.exists(current_dir):
+                        os.makedirs(current_dir)   
+                    # print("test_gts: ", test_gts)
+                    # print("test_res: ", test_res)
                     test_met = self.metric_ftns({i: [gt] for i, gt in enumerate(test_gts)},
                                                 {i: [re] for i, re in enumerate(test_res)})
+                    
                     log.update(**{'test_' + k: v for k, v in test_met.items()})
+                    
+                    test_res, test_gts = pd.DataFrame(test_res), pd.DataFrame(test_gts)
+                    test_res.to_csv(current_dir+'/test_res.csv', index=False, header=["Report Impression"])
+                    test_gts.to_csv(current_dir+'/test_gts.csv', index=False, header=["Report Impression"])
+                    
+                    # print("*** 0 *** current_dir: ", current_dir)
+                    os.system(f'python {current_dir}/../../../external/CheXbert/src/label.py -d={current_dir}/test_res.csv -o={current_dir} -c={current_dir}/../../../external/chexbert.pth')
+                    os.system(f'mv {current_dir}/labeled_reports.csv {current_dir}/test_res_labeled.csv')
+                    # print("*** 1 ***")
+                    os.system(f'python {current_dir}/../../../external/CheXbert/src/label.py -d={current_dir}/test_gts.csv -o={current_dir} -c={current_dir}/../../../external/chexbert.pth')
+                    os.system(f'mv {current_dir}/labeled_reports.csv {current_dir}/test_gts_labeled.csv')
+                    # print("*** 2 ***")
+                    os.system(f'python {current_dir}/../../../compute_ce.py --res_path={current_dir}/test_res_labeled.csv --gts_path={current_dir}/test_gts_labeled.csv')
 
         self.lr_scheduler.step()
+        
+        # print("HERE is log", log)
+        
+        score_1 = (log['test_BLEU_1'] * log['test_BLEU_2'] * log['test_BLEU_3'] * log['test_BLEU_4'] * log['test_METEOR'] * log['test_ROUGE_L']) ** (1/6)
+        metric = json.load(open(f'{current_dir}/AURROC.json'))
+        score_2 = (metric['F1_MICRO'] + metric['PRECISION_MICRO'] + metric['RECALL_MICRO']) / 3
+        print("Language score: ", score_1)
+        print("Medical score: ", score_2)
+        print("Final score: ", (score_1 + score_2) * 0.5)
 
         return log
