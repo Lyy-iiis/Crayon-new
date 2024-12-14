@@ -1,0 +1,3 @@
+[submodule "external/CheXbert"]
+	path = external/CheXbert
+	url = git@github.com:stanfordmlgroup/CheXbert.git
