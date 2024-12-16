@@ -18,5 +18,6 @@ class VisualExtractor(nn.Module):
         avg_feats = self.avg_fnt(patch_feats).squeeze().reshape(-1, patch_feats.size(1))
         batch_size, feat_size, _, _ = patch_feats.shape
         patch_feats = patch_feats.reshape(batch_size, feat_size, -1).permute(0, 2, 1)
-        # print(patch_feats.shape, avg_feats.shape)
+        # print("*** Visual Extractor output shape ***")
+        # print(patch_feats.shape, avg_feats.shape)  # torch.Size([16, 49, 2048]), torch.Size([16, 2048])
         return patch_feats, avg_feats

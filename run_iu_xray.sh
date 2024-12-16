@@ -12,11 +12,12 @@ python main.py \
 --seed 9223 \
 --zeta 2000.0 \
 --zeta_entropy 0.1 \
+--zeta_contrast 0.0 \
 --method r2gen \
 --eval_period 1 \
 --val_iters 1 \
 --test_iters 1 \
---duplication_num 2
+--duplication_num 1
 
 # --method r2gen / pretrained \
 # d_model: 1B: 2048 3B: 3072 

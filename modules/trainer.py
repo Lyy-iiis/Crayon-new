@@ -7,7 +7,7 @@ import pandas as pd
 import json
 from numpy import inf
 from tqdm import tqdm
-from modules.loss import compute_loss
+import numpy as np
 
 class BaseTrainer(object):
     def __init__(self, model, criterion, metric_ftns, optimizer, args):
@@ -95,6 +95,7 @@ class BaseTrainer(object):
                 self._save_checkpoint(epoch, save_best=best)
         self._print_best()
         self._print_best_to_file()
+        self._save_features()
 
     def _print_best_to_file(self):
         crt_time = time.asctime(time.localtime(time.time()))
@@ -179,6 +180,34 @@ class BaseTrainer(object):
         print('Best results (w.r.t {}) in test set:'.format(self.args.monitor_metric))
         for key, value in self.best_recorder['test'].items():
             print('\t{:15s}: {}'.format(str(key), value))
+    
+    def _save_features(self):
+        self.model.eval()
+        features = []
+        patient_ids = []
+        with torch.no_grad():
+            for batch_idx, (images_id, images, reports_ids, reports_masks, labels, labels_mask) in tqdm(enumerate(self.test_dataloader)):
+                # print(f"*** images_id *** {images_id}")
+                images = images.to(self.device)
+                batch_size, num_views, channels, height, width = images.shape
+                images = images.view(batch_size * num_views, channels, height, width)  # [16, 2, 3, 224, 224] -> [32, 3, 224, 224]
+                _, avg_feats = self.model.visual_extractor(images)
+                features.append(avg_feats.cpu().numpy())
+                # patient_ids.extend(images_id.cpu().numpy().repeat(num_views))
+                # print(f"*** features shape of batch_idx {batch_idx} *** {len(features)}")
+
+        features = np.concatenate(features, axis=0)
+        # patient_ids = np.array(patient_ids)
+        # print(f"*** features shape *** {features.shape}")
+        # print(f"*** patient_ids shape *** {patient_ids.shape}")
+        
+        features_path = os.path.join(self.checkpoint_dir, 'features.npy')
+        # patient_ids_path = os.path.join(self.checkpoint_dir, 'patient_ids.npy')
+        np.save(features_path, features)
+        # np.save(patient_ids_path, patient_ids)
+        print(f"Features saved to {features_path}")
+        # print(f"Patient IDs saved to {patient_ids_path}")
+    
 
 
 class Trainer(BaseTrainer):
@@ -191,6 +220,7 @@ class Trainer(BaseTrainer):
         self.test_dataloader = test_dataloader
         self.zeta = args.zeta
         self.zeta_entropy = args.zeta_entropy
+        self.zeta_contrast = args.zeta_contrast
         self.enable_test = 1
         self.enable_val = 1
         self.val_iters = args.val_iters
@@ -213,13 +243,13 @@ class Trainer(BaseTrainer):
                 # print("trainer/reports_masks:", reports_masks)
                 # assert torch.nonzero(reports_ids).size(0) == reports_masks.sum().item(), f"reports_ids and reports_masks do not match. Please check the dataloader. # of non-zero numbers: {torch.nonzero(reports_ids).size(0)} and {reports_masks.sum().item()}"
                 output, pred, att_feats_0, att_feats_1 = self.model(images, reports_ids, mode='train')
-                loss, entropy_loss, pred_loss, contrast_loss = compute_loss(output, reports_ids, reports_masks, pred, labels, labels_mask, att_feats_0, att_feats_1)
+                loss, entropy_loss, pred_loss, contrast_loss = self.criterion(output, reports_ids, reports_masks, pred, labels, labels_mask, att_feats_0, att_feats_1)
                 train_loss += loss.item()
                 total_pred_loss += pred_loss.item()
                 total_entropy_loss += entropy_loss.item()
                 total_contrast_loss += contrast_loss.item()
                 self.optimizer.zero_grad()
-                (loss + self.zeta_entropy * entropy_loss + self.zeta * pred_loss + contrast_loss * 10).backward() # zeta-R2Gen!!!
+                (loss + self.zeta_entropy * entropy_loss + self.zeta * pred_loss + self.zeta_contrast * contrast_loss).backward() # zeta-R2Gen!!!
                 # contrast_loss.backward()
                 torch.nn.utils.clip_grad_value_(self.model.parameters(), 0.1)
                 self.optimizer.step()
