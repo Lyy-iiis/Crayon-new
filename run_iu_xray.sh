@@ -5,9 +5,9 @@ python main.py \
 --max_seq_length 80 \
 --threshold 3 \
 --batch_size 16 \
---epochs 50 \
+--epochs 5 \
 --save_dir results/iu_xray \
---step_size 50 \
+--step_size 30 \
 --gamma 0.1 \
 --seed 9223 \
 --zeta 2000.0 \

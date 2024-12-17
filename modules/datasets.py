@@ -81,6 +81,7 @@ class IuxrayMultiImageDataset(BaseDataset):
         # print(labels_tensor, labels_mask)
         
         sample = (image_id, image, report_ids, report_masks, seq_length, labels_tensor, labels_mask)
+        # print(sample)
         return sample
 
 

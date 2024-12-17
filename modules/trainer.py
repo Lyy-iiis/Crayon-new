@@ -183,8 +183,9 @@ class BaseTrainer(object):
     
     def _save_features(self):
         self.model.eval()
-        features = []
-        patient_ids = []
+        # features = []
+        # patient_ids = []
+        features_dict = {}
         with torch.no_grad():
             for batch_idx, (images_id, images, reports_ids, reports_masks, labels, labels_mask) in tqdm(enumerate(self.test_dataloader)):
                 # print(f"*** images_id *** {images_id}")
@@ -192,20 +193,27 @@ class BaseTrainer(object):
                 batch_size, num_views, channels, height, width = images.shape
                 images = images.view(batch_size * num_views, channels, height, width)  # [16, 2, 3, 224, 224] -> [32, 3, 224, 224]
                 _, avg_feats = self.model.visual_extractor(images)
-                features.append(avg_feats.cpu().numpy())
+                avg_feats = avg_feats.cpu().numpy()
+                # features.append(avg_feats.cpu().numpy())
                 # patient_ids.extend(images_id.cpu().numpy().repeat(num_views))
                 # print(f"*** features shape of batch_idx {batch_idx} *** {len(features)}")
-
-        features = np.concatenate(features, axis=0)
+                for i in range(batch_size):
+                    img_id = images_id[i]
+                    features_dict[f"{img_id}_view1"] = avg_feats[i * num_views]
+                    features_dict[f"{img_id}_view2"] = avg_feats[i * num_views + 1]
+        features_path = os.path.join(self.checkpoint_dir, 'features.npy')
+        np.save(features_path, features_dict)
+        print(f"Features saved to {features_path}")
+        # features = np.concatenate(features, axis=0)
         # patient_ids = np.array(patient_ids)
         # print(f"*** features shape *** {features.shape}")
         # print(f"*** patient_ids shape *** {patient_ids.shape}")
         
         features_path = os.path.join(self.checkpoint_dir, 'features.npy')
         # patient_ids_path = os.path.join(self.checkpoint_dir, 'patient_ids.npy')
-        np.save(features_path, features)
+        # np.save(features_path, features)
         # np.save(patient_ids_path, patient_ids)
-        print(f"Features saved to {features_path}")
+        # print(f"Features saved to {features_path}")
         # print(f"Patient IDs saved to {patient_ids_path}")
     
 
